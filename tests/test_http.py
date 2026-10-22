@@ -1,5 +1,6 @@
 import base64
 import urllib.parse
+import unittest.mock
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
@@ -666,10 +667,28 @@ def test_authorization_to_header(value: str) -> None:
             datetime(1970, 1, 1, tzinfo=UTC),
         ),
         ("Thu, 33 Jan 1970 00:00:00 GMT", None),
+        # Regression: out-of-range values cause OverflowError in
+        # email.utils.parsedate_to_datetime; parse_date should return None.
+        ("Sat, 01 Jan 100000 00:00:00 GMT", None),
+        ("Thu, 01 Jan 1970 00:00:00 +9999", None),
     ],
 )
 def test_parse_date(value, expect):
     assert http.parse_date(value) == expect
+
+def test_parse_date_overflow_error() -> None:
+    """parse_date must return None when parsedate_to_datetime raises OverflowError.
+
+    email.utils.parsedate_to_datetime can raise OverflowError on some platforms
+    when the year or timezone offset overflows C integer types. Werkzeug should
+    treat this the same as any other parse failure and return None.
+    See https://github.com/pallets/werkzeug/issues/3334
+    """
+    with unittest.mock.patch(
+        "werkzeug.http.email.utils.parsedate_to_datetime",
+        side_effect=OverflowError("year is out of range"),
+    ):
+        assert http.parse_date("Thu, 01 Jan 10000 00:00:00 GMT") is None
 
 
 @pytest.mark.parametrize(

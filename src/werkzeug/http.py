@@ -1021,7 +1021,7 @@ def parse_date(value: str | None) -> dt.datetime | None:
 
     try:
         parsed = email.utils.parsedate_to_datetime(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
     if parsed.tzinfo is None:
